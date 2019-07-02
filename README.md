@@ -36,11 +36,11 @@ This issue results from interfacing with GPyOpt's acquisition functions. The iss
 
 ### References
 
-[1] [AutoPrognosis: Automated Clinical Prognostic Modeling via Bayesian Optimization with Structured Kernel Learning](http://proceedings.mlr.press/v80/alaa18b.html), ICML 2018.
+[1] A. M. Alaa and M. van der Schaar, [AutoPrognosis: Automated Clinical Prognostic Modeling via Bayesian Optimization with Structured Kernel Learning](http://proceedings.mlr.press/v80/alaa18b.html), ICML 2018.
 
-[2] [Prognostication and Risk Factors for Cystic Fibrosis via Automated Machine Learning](https://www.nature.com/articles/s41598-018-29523-2), Nature Scientific Reports, 2018.
+[2] A. M. Alaa and M. van der Schaar, [Prognostication and Risk Factors for Cystic Fibrosis via Automated Machine Learning](https://www.nature.com/articles/s41598-018-29523-2), Nature Scientific Reports, 2018.
 
-[3] [Cardiovascular Disease Risk Prediction using Automated Machine Learning: A Prospective Study of 423,604 UK Biobank Participants](https://www.ncbi.nlm.nih.gov/pubmed/31091238), PLOS ONE, 2019.
+[3] A. M. Alaa and M. van der Schaar, [Cardiovascular Disease Risk Prediction using Automated Machine Learning: A Prospective Study of 423,604 UK Biobank Participants](https://www.ncbi.nlm.nih.gov/pubmed/31091238), PLOS ONE, 2019.
 
 
 
