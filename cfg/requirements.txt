@@ -1,0 +1,22 @@
+prompt-toolkit==1.0.15
+pympler
+pivottablejs
+pandas==0.23
+seaborn
+scikit-survival
+xgboost
+IPython
+rpy2
+tzlocal
+lifelines
+gpyopt
+requests
+tqdm
+jupyter 
+ipywidgets
+numpy
+argparse
+statsmodels
+sklearn
+ipython
+# keras
