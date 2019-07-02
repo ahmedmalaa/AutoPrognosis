@@ -1,13 +1,11 @@
 '''
 Test script that calls all test routines and notebooks in this directory
 '''
-from subprocess import call
 import sys
 import os
 import argparse
-import re
-import json
 from pathlib import Path
+
 
 def init_sys_path():
     import os
@@ -30,13 +28,16 @@ def init_arg():
     parser.add_argument('--projdir')
     # parser.add_argument('--verbose', type=int, default=0)
     parser.add_argument('--it', type=int)
-    # parser.add_argument('--nstage', type=int, default=0)
+    parser.add_argument('--onlynotebook', type=int, default=0)
     return parser.parse_args()
 
 
 if __name__ == '__main__':
 
     args = init_arg()
+
+    is_only_notebook = args.onlynotebook
+
     if args.exe is not None:
         python_exe = args.exe
     else:
@@ -45,33 +46,40 @@ if __name__ == '__main__':
     proj_dir = utilmlab.get_proj_dir() \
         if args.projdir is None else args.projdir
 
-    logger = utilmlab.init_logger('.', 'log_test_alg.txt')
+    logger = utilmlab.init_logger(
+            '.', 
+            'log_test_alg_{}.txt'.format(utilmlab.get_hostname()))
 
-    # execute all unit tests
-    
-    f_lst = utilmlab.find_file_dir(
-        '{}/alg'.format(proj_dir),
-        'test_*.py')
+    if not is_only_notebook:
 
-    print(f_lst)
-    for fpy in f_lst:
-        if 'test_alg.py' in fpy:
-            continue
-        utilmlab.exe_cmd(
-            logger,
-            '{} {} {} {}'.format(
-                python_exe,
-                Path(fpy),
-                '--it {}'.format(args.it) if args.it is not None else '',
-                '--exe {}'.format(args.exe) if args.exe is not None else ''
+        # execute all unit tests
+
+        f_lst = utilmlab.find_file_dir(
+            '{}/alg'.format(proj_dir),
+            'test_*.py')
+
+        logger.info('Unit tests found:{}'.format(f_lst))
+
+        for fpy in f_lst:
+            if 'test_alg.py' in fpy:
+                continue
+            utilmlab.exe_cmd(
+                logger,
+                '{} {} {} {}'.format(
+                    python_exe,
+                    Path(fpy),
+                    '--it {}'.format(args.it) if args.it is not None else '',
+                    '--exe {}'.format(args.exe) if args.exe is not None else ''
                 )
             )
-    
+
     # execute all notebooks
-    
+
     f_lst = utilmlab.find_file_dir(
         '{}/alg'.format(utilmlab.get_proj_dir()),
         '*.ipynb')
+
+    logger.info('notebooks found:{}'.format(f_lst))
 
     cwd = os.getcwd()
 
@@ -81,8 +89,8 @@ if __name__ == '__main__':
         utilmlab.exe_cmd(
             logger,
             'jupyter nbconvert {} --to python'.format(fnb))
-        
-        fpy = Path(fnb.replace('.ipynb', '.py'))
+
+        fpy = fnb.replace('.ipynb', '.py')
         os.chdir(os.path.dirname(fpy))
         utilmlab.exe_cmd(
             logger,

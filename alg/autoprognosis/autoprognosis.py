@@ -14,13 +14,20 @@ import utilmlab
 def init_arg():
     parser = argparse.ArgumentParser()
     parser.add_argument("-o", help="output directory")
-    parser.add_argument("-n", default=0, type=int, help="maximum number of samples")
+    parser.add_argument(
+        "-n",
+        default=0,
+        type=int,
+        help="maximum number of samples")
     parser.add_argument(
         "--nstage",
         default=1,
         type=int,
-        help="size of pipeline: 1: only classifiers, 2: feature processesing"
-        " + clf, 3,0: imputers + feature processors and clf")
+        help=""
+        "size of pipeline: 0: auto (selects imputation when missing data is detected)"
+        "1: only classifiers, "
+        "2: feature processesing + clf, "
+        "3: imputers + feature processors and clf")
     parser.add_argument("--dataset")
     parser.add_argument("-i", help='input data in csv format')
     parser.add_argument(
@@ -32,14 +39,39 @@ def init_arg():
         help="separator to use when writing to csv file")
     parser.add_argument("--metric", default='aucroc')
     parser.add_argument("--verbose", default=0, type=int)
-    parser.add_argument("--pmiss", default=0, type=float, help='missing rate when introducing nans')
-    parser.add_argument("--xtr", default=1, type=int, help="private/adhoc/not supported parameter to temporally control internal behavior" )
+    parser.add_argument(
+        "--pmiss",
+        default=0,
+        type=float,
+        help='missing rate when introducing nans')
+    parser.add_argument(
+        "--xtr",
+        default=0,
+        type=int,
+        help="private/adhoc/not supported parameter to"
+        " temporally control internal behavior")
     parser.add_argument("--usegain", default=0, type=int)
-    parser.add_argument("--it", default=20, type=int, help='number of iterations')
-    parser.add_argument("--ensemble", default=1, type=int, help='include ensembles when fitting')
+    parser.add_argument(
+        "--it",
+        default=20,
+        type=int,
+        help='number of iterations')
+    parser.add_argument(
+        "--ensemble",
+        default=1,
+        type=int,
+        help='include ensembles when fitting')
     parser.add_argument("--ensemblesize", default=3, type=int)
     parser.add_argument("--model", help="filename to save model")
-    parser.add_argument("--cv", type=int, default=5)
+    parser.add_argument(
+        "--cv",
+        type=int,
+        default=5,
+        help="number of cross validation folds")
+    parser.add_argument(
+        "--acquisitiontype",
+        default='LCB',
+        help="[LCB, MPI, EI], LCB is prefered but generates warnings")
     return parser.parse_args()
 
 
@@ -62,7 +94,7 @@ def impute_gain(x, odir):
 
 
 if __name__ == '__main__':
-    version = '0.21'
+    version = '0.40'
     args = init_arg()
     nCV = args.cv
     model.set_xtr_arg(args.xtr)
@@ -73,9 +105,15 @@ if __name__ == '__main__':
     fn_json = '{}/result.json'.format(odir)
     fn_report_json = '{}/report.json'.format(odir)
     fn_model = args.model
+    acquisition_type = args.acquisitiontype
 
     sep = args.separator
     verbose = args.verbose
+
+    if not os.path.isdir(odir):
+        print("error: output directory \"{}\" does not exist".format(odir))
+        assert 0
+
     logger = utilmlab.init_logger(
         odir,
         'log_ap.txt',
@@ -99,8 +137,10 @@ if __name__ == '__main__':
 
     logger.info('autoprognosis version'.format(version))
     logger.info('ds:{} stages:{} n:{} metric:{} pmiss:{} it:{} '
-                'model:{}'.format(
-                    ds, nmax_model, nsample, metric, p_miss, niter, fn_model))
+                'model:{} aqt:{}'.format(
+                    ds, nmax_model, nsample,
+                    metric, p_miss, niter, fn_model,
+                    acquisition_type))
 
     logger.info('{}'.format(args))
     if ds is not None and os.path.isfile(
@@ -151,14 +191,14 @@ if __name__ == '__main__':
         nnan_x = utilmlab.df_get_num_na(X_)
         logger.info('nan (after gain):{}'.format(nnan_x))
 
-    if nnan_x and 0 < nmax_model and nmax_model < 3:
-        X_ = X_.fillna(X_.mean())
-        logger.critical(
-            'warning: nan (missing values) detected and no'
-            'imputation selecting, using mean imputation:{}'.format(nnan_x))
-        time.sleep(2)
-        nnan_x = utilmlab.df_get_num_na(X_)
-        assert nnan_x == 0
+    # if nnan_x and 0 < nmax_model and nmax_model < 3:
+    #     X_ = X_.fillna(X_.mean())
+    #     logger.critical(
+    #         'warning: nan (missing values) detected and no'
+    #         'imputation selecting, using mean imputation:{}'.format(nnan_x))
+    #     time.sleep(2)
+    #     nnan_x = utilmlab.df_get_num_na(X_)
+    #     assert nnan_x == 0
 
     exe_time_start = time.time()
 
@@ -172,17 +212,18 @@ if __name__ == '__main__':
         burn_in=50,
         num_components=3,
         metric=metric,
-        isnan=True if utilmlab.df_get_num_na(X_) else False)
+        isnan=True if utilmlab.df_get_num_na(X_) else False,
+        acquisition_type=acquisition_type)
 
     if False:
-        logger.info('+ap:evaluateAUC')
-        Output, d = model.evaluateAUC(
+        logger.info('+ap:evaluate_clf')
+        Output, d = model.evaluate_clf(
             X_,
             Y_,
             AP_mdl,
             n_folds=nCV,
             visualize=True)
-        logger.info('-ap:evaluateAUC')
+        logger.info('-ap:evaluate_clf')
         logger.info('+')
         for idx, el in enumerate(AP_mdl.scores_):
             logger.info('{} {:0.3f} {}'.format(
@@ -201,7 +242,7 @@ if __name__ == '__main__':
     assert is_ensemble == True
 
     Output, Output_ens, score_d, last_model_fitted, eva_prop_lst \
-        = model.evaluateAUC_ens(
+        = model.evaluate_ens(
             X_,
             Y_,
             AP_mdl,
@@ -238,19 +279,22 @@ if __name__ == '__main__':
     with open(fn_report_json, "w") as fp:
         json.dump(report_d, fp)
 
-    logger.info('**Final Cross-validation score: ** {}'.format(str(Output)))
-    logger.info('**Final Cross-validation score with ensembles: ** {}'.format(
+    logger.debug('**Final Cross-validation score: ** {}'.format(str(Output)))
+    logger.debug('**Final Cross-validation score with ensembles: ** {}'.format(
         str(Output_ens)))
     for ky in ['clf', 'clf_ens']:
-        logger.info(' evaluateAUC_ens: {} aucroc {:0.4f} #({})'.format(
+        logger.debug(' evaluateAUC_ens: {} aucroc {:0.4f} #({})'.format(
             ky,
             np.mean(score_d[ky]['roc_lst']),
             len(score_d['clf']['roc_lst'])))
-        logger.info(' evaluateAUC_ens: {} aucprc {:0.4f} #({})'.format(
+        logger.debug(' evaluateAUC_ens: {} aucprc {:0.4f} #({})'.format(
             ky,
             np.mean(score_d[ky]['prc_lst']),
             len(score_d[ky]['prc_lst'])))
-    logger.info('-evaluateAUC_ens {} {} {:0.1f}s'.format(Output, Output_ens, score_d['time_exe']))
+    logger.info('-evaluateAUC_ens {} {} {:0.1f}s'.format(
+        Output,
+        Output_ens,
+        score_d['time_exe']))
 
     if fn_model is not None:
         with open(fn_model, "wb") as fp:

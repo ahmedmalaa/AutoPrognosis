@@ -6,9 +6,11 @@ import initpath_ap
 initpath_ap.init_sys_path()
 import utilmlab
 
+
 def pretty_name(ky):
     pretty_name_d = {
         'best_score_single_clf': 'best score single clf (while fitting)',
+        'best_score_single_pipeline': 'best score single pipeline (while fitting)',
         'ensemble_score': 'best ensemble score (while fittng)',
         'classes': 'classes dataset'
     }
@@ -16,7 +18,7 @@ def pretty_name(ky):
 
 
 def pretty_val(val):
-    return  '{:0.3f}'.format(val) if isinstance(val, float) else val
+    return '{:0.3f}'.format(val) if isinstance(val, float) else val
 
 
 def generate_report(
@@ -81,14 +83,16 @@ def generate_report(
                     hyper_par = el1[ky1]
                     model_par += hyper_par['model']
                 else:
-                   model_par += el1['name']
-            # model_par = el1['name']
+                    model_par += el1['name']
+            if not verbose:
+                # if not verbose group performance clf by name not by parameters
+                model_par = el1['name']
         clf_hyper_d[model_par].append(el)
 
     logger.info('# {}'.format(len(clf_hyper_d.keys())))
     clf_lst = list()
     for el in clf_hyper_d.keys():
-        #logger.info('{}'.format(el))
+        # logger.info('{}'.format(el))
         aucroc_lst = list()
         aucprc_lst = list()
         for el1 in clf_hyper_d[el]:
@@ -97,7 +101,11 @@ def generate_report(
             aucprc_lst.append(el1[1]['aucprc'])
             aucroc_lst.append(el1[1]['aucroc'])
         # logger.info('{:50s} {} {:0.3f} {:0.3f}'.format(el, len(aucroc_lst), np.mean(aucroc_lst), np.mean(aucprc_lst)))
-        clf_lst.append((el, len(aucroc_lst), np.mean(aucroc_lst), np.mean(aucprc_lst)))
+        clf_lst.append((
+            el,
+            len(aucroc_lst),
+            np.mean(aucroc_lst),
+            np.mean(aucprc_lst)))
 
     sort_ky_num = 2 if opt_metric == 'aucroc' else 3
     
@@ -123,7 +131,9 @@ def init_arg():
     parser.add_argument(
         '--verbose',
         type=int,
-        default=0)
+        default=0,
+        help='if not 0 show performance clf grouped by hyperparameters, otherwise grouped by clf name'
+    )
     return parser.parse_args()
 
 

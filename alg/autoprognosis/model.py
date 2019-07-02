@@ -1,35 +1,43 @@
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
 from pivottablejs import pivot_ui
-import sklearn.metrics as metrics
-import sys
 import warnings
-
-if not sys.warnoptions:
-    warnings.simplefilter("ignore")
-    
 import GPyOpt
 import GPy
-from numpy.random import seed 
-from scipy.stats import norm
-
-from tqdm import tnrange, tqdm_notebook
-
-from models.imputers import missForest, matrix_completion, mean, median, most_frequent
-from models.classifiers import RandomForest, RandomForestClassifier, GradientBoosting, GradientBoostingClassifier, XGboost, Adaboost, Bagging, BernNaiveBayes, BernoulliNB, GaussNaiveBayes, MultinomialNaiveBayes, MultinomialNB, LogisticReg, Percept, DecisionTrees, DecisionTreeClassifier, QDA_, LDA_, KNN, LinearSVM, NeuralNet
-from models.classifiers import classifier_set_xtr_arg, classifier_get_xtr_arg
-from models.preprocessors import Scaler, MinMaxScaler, UniformTransform, GaussianTransform, FeatureNormalizer, GaussProjection , PrincipalComponentAnalysis
-from pipelines.basePipeline import basePipeline
-
-import requests
-from IPython.display import Markdown, display, Image, SVG, Math, YouTubeVideo
+from IPython.display import Markdown, display, Image
 import logging
 import copy
-from collections import defaultdict
 import time
+from tqdm import tnrange
+from models.imputers import missForest, matrix_completion, mean, median
+from models.imputers import most_frequent
+from models.classifiers import RandomForest, RandomForestClassifier
+from models.classifiers import GradientBoosting, GradientBoostingClassifier
+from models.classifiers import XGboost, Adaboost, Bagging, BernNaiveBayes
+from models.classifiers import BernoulliNB, GaussNaiveBayes
+from models.classifiers import MultinomialNaiveBayes, MultinomialNB
+from models.classifiers import LogisticReg
+from models.classifiers import Percept, DecisionTrees, DecisionTreeClassifier
+from models.classifiers import QDA_, LDA_, KNN, LinearSVM, NeuralNet
+from models.classifiers import classifier_set_xtr_arg, classifier_get_xtr_arg
+from models.preprocessors import Scaler, MinMaxScaler, UniformTransform
+from models.preprocessors import GaussianTransform, FeatureNormalizer
+from models.preprocessors import GaussProjection, PrincipalComponentAnalysis
+from pipelines.basePipeline import basePipeline
+import sys
+if not sys.warnoptions:
+    warnings.simplefilter("ignore")
 import initpath_ap
 initpath_ap.init_sys_path()
 import utilmlab
+
+
+def is_ipython():
+    try:
+        __IPYTHON__
+        return True
+    except NameError:
+        return False
 
 
 class evaluate:
@@ -60,7 +68,7 @@ class evaluate:
             score_val = self.roc_auc_score(y_test, y_pred_proba)
         else:
             assert 0
-        logger.info('evaluate:{:0.5f}'.format(score_val))
+        logger.debug('evaluate:{:0.5f}'.format(score_val))
         return score_val
     
     def score_proba(self, y_test, y_pred_proba):
@@ -84,21 +92,24 @@ class evaluate:
 
 
 def set_xtr_arg(xtr):
-    global xtr_arg
-    xtr_arg = xtr
+    global model_xtr_arg
+    model_xtr_arg = xtr
     classifier_set_xtr_arg(xtr)
 
 
 def show_xtr_arg():
-    print(xtr_arg)
+    print(model_xtr_arg)
     print(classifier_get_xtr_arg())
     
+
 def get_xtr_arg():
-    return xtr_arg
+    return model_xtr_arg
 
     
 def printmd(string):
-    display(Markdown(string))
+    global gis_ipython
+    if gis_ipython:
+        display(Markdown(string))
     logger.info('{}'.format(string))
 
 
@@ -115,11 +126,13 @@ class AutoPrognosis_Classifier:
             burn_in=50,
             num_components=3,
             is_nan=True,
-            metric = 'aucroc',
+            metric='aucroc',
+            acquisition_type='LCB',
             **kwargs):
 
         eva.set_metric(metric)
         self.is_pred_proba = True
+        self.acquisition_type = acquisition_type
         self.is_nan = is_nan
         self.num_iter       = num_iter
         self.x_opt          = 0
@@ -153,19 +166,36 @@ class AutoPrognosis_Classifier:
         
     def get_model(self,dom_,comp_no,comp_map,x_next):
         
-        imputers_      = [[], [missForest()], [matrix_completion()], [mean()], [median()], [most_frequent()]]
+        imputers_ = [
+            [],
+            [missForest()],
+            [mean()],
+            [median()],
+            [most_frequent()]
+        ]
         
-        preprocessors_ = [[], [MinMaxScaler()], [UniformTransform()], [GaussianTransform()], [FeatureNormalizer()], 
-                          [GaussProjection()], [PrincipalComponentAnalysis()]]
+        preprocessors_= [
+            [],
+            [MinMaxScaler()],
+            [UniformTransform()],
+            [PrincipalComponentAnalysis()]
+        ]
 
-        if get_xtr_arg() < 2:
+        if get_xtr_arg() < 1:
+
+            imputers_.append([matrix_completion()])
+            
             # WA: bagging with base estimator cannot handle negative values
             preprocessors_.append([Scaler()])
-        
-        select_imp     = np.random.randint(
-            get_xtr_arg() if self.is_nan else 0,
+            preprocessors_.append([GaussProjection()])
+            preprocessors_.append([GaussianTransform()])
+            preprocessors_.append([FeatureNormalizer()])
+
+            
+        select_imp = np.random.randint(
+            1 if self.is_nan else 0,
             len(imputers_)-1)
-        select_pre     = np.random.randint(0, len(preprocessors_)-1)        
+        select_pre = np.random.randint(0, len(preprocessors_)-1)        
         
         # Create hyper-parameter dictionary
         #----------------------------------
@@ -271,11 +301,17 @@ class AutoPrognosis_Classifier:
                               solver=nnsolvers[int(x_next[domain_list.index('NeuralNet.solver')])],
                               activation=nnactiv[int(x_next[domain_list.index('NeuralNet.activation')])])
         
-        ## Mark here
-        model_list=imputers_[select_imp] + preprocessors_[select_pre] + [model]
+        model_list_base = imputers_[select_imp] + preprocessors_[select_pre] + [model]
 
         if nmax_model:
-            model_list = model_list[-nmax_model:]
+            model_list = model_list_base[-nmax_model:]
+        else:
+            # auto
+            model_list = list()
+            if self.is_nan:
+                model_list.append(model_list_base[0]) # add imputer
+            model_list.append(model_list_base[-1]) # add clf
+            
         model = basePipeline(model_list=model_list)
         return model
     
@@ -306,7 +342,7 @@ class AutoPrognosis_Classifier:
 
         #mod_back.fit(X_in, Y_in)
 
-        rval_eva = evaluateAUC(X_in.copy(), Y_in.copy(), copy.deepcopy(modraw_), n_folds = self.CV)
+        rval_eva = evaluate_clf(X_in.copy(), Y_in.copy(), copy.deepcopy(modraw_), n_folds = self.CV)
         logger.info('CV_objective:{}'.format(rval_eva))
         f = -1*rval_eva[0][0]
         return f, mod_back, rval_eva[1]
@@ -336,18 +372,25 @@ class AutoPrognosis_Classifier:
         GP_      = []
         
         for u in range(len(domains_)):
+            
+            # GPyOpt.methods.BayesianOptimization(
+            #     None,
+            #     domain=domains_[u],
+            #     X=X_step[u],
+            #     Y=Y_step[u],
+            #     acquisition_type='LCB')
 
             bo_steps.append(GPyOpt.methods.BayesianOptimization(
-                f = None, domain = domains_[u], X = X_step[u], 
-                Y = Y_step[u], acquisition_type='LCB', 
-                model_type='GP', exact_feval = True,
+                f=None, domain=domains_[u], X=X_step[u],
+                Y=Y_step[u],
+                acquisition_type=self.acquisition_type,
+                model_type='GP', exact_feval=True,
                 cost_withGradients=None
             ))
-            
+
             x_next.append(bo_steps[-1].suggest_next_locations()[0])
-            GP_.append(bo_steps[-1].model.model)    
-        
-        
+            GP_.append(bo_steps[-1].model.model)
+
         return x_next, GP_
     
     
@@ -360,9 +403,14 @@ class AutoPrognosis_Classifier:
         for u in range(len(domains_)):
 
             bo_steps.append(GPyOpt.methods.BayesianOptimization(
-                f = None, domain = domains_[u], constraints = constr_, 
-                X = X_step[u], Y = Y_step[u], acquisition_type='LCB', 
-                model_type='GP', exact_feval = True,
+                f=None,
+                domain=domains_[u],
+                constraints=constr_, 
+                X=X_step[u],
+                Y=Y_step[u],
+                acquisition_type=self.acquisition_type, 
+                model_type='GP',
+                exact_feval=True,
                 cost_withGradients=None
             ))
             
@@ -404,7 +452,6 @@ class AutoPrognosis_Classifier:
         time_start_fit = time.time()
         assert len(self.model_) == 0
         for i in tnrange(self.num_iter, desc='BO progress'):
-            
             x_next, GP_ = self.BO_(self.domains_,X_step,Y_step)
             self.GP_    = GP_
             y_next      = []
@@ -444,7 +491,7 @@ class AutoPrognosis_Classifier:
                 
                 msg_  = "Iteration number: " + str(current_iter) + " " + time_iter_info + " ||--------------------------- ** Updating kernel ** ---------------------------||                                      "  
 
-                logger.info('{}'.format(msg_))
+                logger.warning('{}'.format(msg_))
                 
                 self.merged_domain_, self.X_merged, self.Y_merged = merge_domains(self.domains_, X_step, Y_step, self.compons_)
                 Decomposed_kern, Gposter_                         = self.Kernel_decomposition([self.X_merged], [self.Y_merged], [self.merged_domain_])            
@@ -469,7 +516,7 @@ class AutoPrognosis_Classifier:
             
                 msg_  = "Iteration number: " + str(current_iter) + " " + time_iter_info + ", Current pipelines: " + display_msg  + "BO objective: " + str(best_)
 
-                logger.info('{}'.format(msg_))
+                logger.warning('{}'.format(msg_))
 
         self.X_step  = X_step
         self.Y_step  = Y_step
@@ -743,13 +790,14 @@ class AutoPrognosis_Classifier:
         
         best_score = float(np.min(np.array(self.scores_)))
 
-        report_d['best_score_single_clf'] = -best_score
-        report_d['model_name_single_clf'] = self.model.name
+        report_d['best_score_single_pipeline'] = -best_score
+        report_d['model_names_single_pipeline'] = self.model.name
         report_d['ensemble_score'] = -float(self.ensemble_score)
-        report_d['ensemble_model_name'] = [self.ensemble_models[u].name for u in range(self.ensemble_size)]
-        report_d['ensemble_model_weight'] = [self.ensemble_weights[u] for u in range(self.ensemble_size)]
+        report_d['ensemble_pipelines'] = [self.ensemble_models[u].name for u in range(self.ensemble_size)]
+        report_d['ensemble_pipelines_weight'] = [self.ensemble_weights[u] for u in range(self.ensemble_size)]
         report_d['optimisation_metric'] = eva.get_metric()
         report_d['hyperparameter_properties'] = self.model.get_properties()
+        report_d['acquisition_type'] = self.acquisition_type
 
         logger.info('score:{:0.3f} {} ensemble score:{:0.3f} {}'.format(
             best_score,
@@ -777,7 +825,7 @@ class AutoPrognosis_Classifier:
                 i = Image(filename=self.ensemble_models[u].image_name,width=self.ensemble_models[u].image_size[0],height=self.ensemble_models[u].image_size[1])
                 display(i,width=self.ensemble_models[u].image_size[0],height=self.ensemble_models[u].image_size[1])
             else:
-                print('warning:no image_name')
+                logger.debug('warning:no image_name')
 
         printmd("\r{0}".format("**----------------------**"))
         printmd("\r{0}".format("***Kernel Report***"))
@@ -859,9 +907,7 @@ def get_ensemble_constraints(ens_size):
     return ens_constraints
     
 
-
-
-def evaluateAUC(X, Y, model_input, n_folds, visualize=False):
+def evaluate_clf(X, Y, model_input, n_folds, visualize=False):
 
     metric_      = np.zeros(n_folds)
     indx         = 0
@@ -941,11 +987,11 @@ def evaluateAUC(X, Y, model_input, n_folds, visualize=False):
 
     roc = float(np.mean(score_roc_lst))
     prc = float(np.mean(score_prc_lst))
-    logger.info(' evaluateAUC::aucroc {:0.4f} #({}) {}'.format(
+    logger.info(' evaluate_clf::aucroc {:0.4f} #({}) {}'.format(
         roc,
         len(score_roc_lst),
         model.name))
-    logger.info(' evaluateAUC::aucprc {:0.4f} #({}) {}'.format(
+    logger.info(' evaluate_clf::aucprc {:0.4f} #({}) {}'.format(
         prc,
         len(score_prc_lst),
         model.name
@@ -956,13 +1002,13 @@ def evaluateAUC(X, Y, model_input, n_folds, visualize=False):
         'name': model.name,
         'cv': n_folds
     }
-    logger.info('-evaluateAUC {} {}'.format(Output, eva_prop))
+    logger.info('-evaluate_clf {} {}'.format(Output, eva_prop))
     return Output, eva_prop
 
 
-def evaluateAUC_ens(X, Y, model_input, n_folds, visualize=False):
+def evaluate_ens(X, Y, model_input, n_folds, visualize=False):
     
-    logger.info('+evaluateAUC_ens shape x:{} y:{}'.format(X.shape, Y.shape))
+    logger.info('+evaluate_ens shape x:{} y:{}'.format(X.shape, Y.shape))
     logger.info('nan x:{} {}'.format(
         sum(np.ravel(np.isnan(X))),
         sum(np.ravel(np.isnan(X)))/len(np.ravel(X))))
@@ -1218,7 +1264,8 @@ def split_domain(doms_, dom_merged, comp_map, X_m, Y_m):
 eva = evaluate()
 
 logger = logging.getLogger()
+logging.basicConfig(level=logging.WARNING, format='%(message)s')
 
 nmax_model = 0
-xtr_arg = 1
-
+model_xtr_arg = 0
+gis_ipython = is_ipython()

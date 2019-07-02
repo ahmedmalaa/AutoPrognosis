@@ -7,19 +7,23 @@ from collections import Counter
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import label_binarize
-from sklearn.metrics import roc_curve, auc, precision_recall_curve, roc_auc_score, average_precision_score
+from sklearn.metrics import roc_curve, auc, precision_recall_curve
+from sklearn.metrics import roc_auc_score, average_precision_score
 
 
-def init_logger(odir='.', log_fn='log.txt', use_show=True):
+def init_logger(odir='.', log_fn='log.txt', use_show=True, log_level=None):
     logger = logging.getLogger()
     logging.basicConfig(level=logging.INFO, format='%(message)s')
+    logging.basicConfig(level=logging.WARNING, format='%(message)s')
     log_fn = "{}/{}".format(odir if len(odir) else ".", log_fn)
     if os.path.isfile(log_fn):
         os.remove(log_fn)
     handler = logging.FileHandler(log_fn)
-    handler.setLevel(logging.INFO if use_show else logging.CRITICAL)
+    if log_level is None:
+        log_level = logging.INFO if use_show else logging.WARNING
+    handler.setLevel(log_level)
     logger.addHandler(handler)
-    logger.setLevel(logging.INFO if use_show else logging.CRITICAL)
+    logger.setLevel(log_level)
     return logger
 
 
@@ -221,7 +225,7 @@ def evaluate_auc(y_test, y_pred_proba, classes=None):
 
         if n_classes > 2:
 
-            logger.info('+evaluate_auc {} {}'.format(y_test.shape, y_pred_proba_tmp.shape))
+            logger.debug('+evaluate_auc {} {}'.format(y_test.shape, y_pred_proba_tmp.shape))
 
             fpr = dict()
             tpr = dict()
@@ -274,6 +278,14 @@ def evaluate_auc(y_test, y_pred_proba, classes=None):
                 y_pred_proba_tmp)
 
     return aucroc, aucprc
+
+
+def get_hostname():
+    return os.environ['HOSTNAME'] if 'HOSTNAME' in os.environ else 'unknown'
+
+
+def get_df_compression(fn):
+    return 'gzip' if fn.endswith('.gz') else None
 
 
 logger = logging.getLogger()

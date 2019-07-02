@@ -1,23 +1,32 @@
 import pandas as pd
 import utilmlab
-import numpy as np
-import time
 import sys
-from sklearn.datasets import load_breast_cancer
+from sklearn.datasets import load_breast_cancer, fetch_covtype
 import logging
 import argparse
+import os
 
-# return ['spam', 'spambase', 'breastcancer',
-#         'bc', 'news', 'newsbin', 'letter-recognition',
-#         'letter']
 
 ds2fn_d = {
-    'bc': None
+    'bc': None,
+    'cover': None,
+    'breastcancer': None,
+    'spam': '{}/spam.csv.gz'.format(utilmlab.get_data_dir()),
+    'spambase': '{}/spambase.csv.gz'.format(utilmlab.get_data_dir()),
+    'news': '{}/OnlineNewsPopularity.csv.gz'.format(utilmlab.get_data_dir()),
+    'newsbin': '{}/OnlineNewsPopularity.csv.gz'.format(
+        utilmlab.get_data_dir()),
+    'letter': '{}/letter.csv.gz'.format(utilmlab.get_data_dir()),
+    'letter-recognition': '{}/letter.csv.gz'.format(utilmlab.get_data_dir()),
+    'creditcardfraud': '{}/kaggle_creditcardfraud/creditcard_modified.csv'.format(
+        utilmlab.get_data_dir())
 }
+
 
 def is_available(ds):
     if ds in ds2fn_d.keys():
         return True if ds2fn_d[ds] is None else os.path.isfile(ds2fn_d[ds])
+
 
 def get_available_datasets():
     ds_lst = list()
@@ -52,6 +61,12 @@ def get_dataset(dataset, nsample=0):
         target = 'target'
         df[target] = data.target
         labels = [target]
+    elif dataset == 'cover':
+        data = fetch_covtype()
+        df = pd.DataFrame(data.data)
+        target = 'target'
+        df[target] = data.target
+        labels = [target]
     elif dataset == 'news':
         fn = '{}/OnlineNewsPopularity.csv.gz'.format(
             utilmlab.get_data_dir())
@@ -71,6 +86,9 @@ def get_dataset(dataset, nsample=0):
     elif dataset == 'letter-recognition':
         fn = '{}/letter-recognition.csv.gz'.format(utilmlab.get_data_dir())
         labels = ['lettr']
+    elif dataset == 'creditcardfraud':
+        fn = ds2fn_d[dataset]
+        labels = ['Amount', 'Class']
     elif dataset == 'show':
         print('availabel datasets: {}'.format(dataset_lst))
         sys.exit(0)
@@ -139,10 +157,17 @@ def load_dataset_from_csv(logger, icsv, label):
 
 def init_arg():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-o")
-    parser.add_argument("--dataset", default='BPD')
-    parser.add_argument("--target", default='label')
-    parser.add_argument("--pmiss", default=0, type=float)
+    parser.add_argument('-o')
+    parser.add_argument('--dataset')
+    parser.add_argument(
+        '--target',
+        default='label',
+        help='targets, separated by ,')
+    parser.add_argument('--pmiss', default=0, type=float)
+    parser.add_argument(
+        '--showavailable',
+        help='show available datasets',
+        action='store_true')
     parser.add_argument(
         "--separator",
         default=',',
@@ -153,12 +178,20 @@ def init_arg():
 if __name__ == '__main__':
 
     logger = logging.getLogger()
+    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    logger.setLevel(logging.INFO)
+
     args = init_arg()
     dataset = args.dataset
     fn_o = args.o
-    label = args.target
+    label = args.target.split(',')
     p_miss = args.pmiss
     sep = args.separator
+
+    if args.showavailable:
+        dataset_lst = get_available_datasets()
+        logger.info('available datasets: {}'.format(dataset_lst))
+        sys.exit(0)
     
     # hack: space marker: some tools cannot deal with spaces with are part of
     # the name
@@ -169,16 +202,28 @@ if __name__ == '__main__':
     dataset_log_properties(logger, dset)
     features = dset['features']
     df = dset['df']
-    print(dset['targets'])
-    assert len(dset['targets']) == 1
+    logger.info(dset['targets'])
+    assert len(dset['targets']) >= 1
+
     if label not in dset['targets']:
+        print(dset['targets'], label)
+        print(df.columns)
         df[label] = df[dset['targets']]
+        print(df.columns)
         df = df.drop(dset['targets'], axis=1)
         for el in dset['targets']:
             assert el not in df.columns
-    print('{} {} o:{} lbl:{} pmiss:{}'.format(dataset, df.values.shape, fn_o, label, p_miss))
+        
+    logger.info('{} {} o:{} lbl:{} pmiss:{}'.format(
+        dataset,
+        df.values.shape,
+        fn_o,
+        label,
+        p_miss))
+
     if p_miss:
-        x = utilmlab.introduce_missing(x, p_miss),
+        df[features] = utilmlab.introduce_missing(df[features], p_miss)
     assert fn_o is not None
     compression = 'gzip' if fn_o.endswith('.gz') else None
+    logger.info('saving {}'.format(fn_o))
     df.to_csv(fn_o, index=False, compression=compression, sep=sep)

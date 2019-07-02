@@ -1,7 +1,7 @@
 # Installation instructions
 
-Some algorithms require dependencies that are only known to
-work with python3.6. In addition to this it depends upon R packages
+The required dependencies work with python3.6 or python3.7.
+In addition to this it depends upon R packages
 which are only available for recent versions of R. Some algorithms
 require tensorflow, ideally with GPU acceleration.
 
@@ -11,12 +11,18 @@ require tensorflow, ideally with GPU acceleration.
 Depends upon the Anaconda Distribution (https://www.anaconda.com)
 
 ```
+   # if you do not have python3.6 or python 3.7 create an environment with the required version of python
+
 conda create -n python36env python=3.6  # install and create an python3.6 environment
 conda activate python36env              # use source for linux like environments, for example 'source ~/anaconda3/bin/activate python36env'
+
+   # install packages:
+   
 conda install  r-essentials r-base
 
 conda install pandas scipy pivottablejs rpy2 matplotlib tqdm requests jupyter seaborn
-pip install sklearn gpyopt xgboost
+pip install sklearn gpyopt xgboost sets
+
 ```
 
 

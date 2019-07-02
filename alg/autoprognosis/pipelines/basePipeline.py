@@ -116,7 +116,7 @@ class basePipeline:
             if self.pipeline_stages[u] == 'classifier':
 
                 classes = list(self.model_list[u].model.classes_)
-                logger.info('clf classes:{} ordered:{}'.format(classes, sorted(classes)))
+                logger.debug('clf classes:{} ordered:{}'.format(classes, sorted(classes)))
                 assert sorted(classes) == classes # this assumption must hold for multiclass when calculating the score
             
         logger.info('-basepipeline::fit {:0.0f}s'.format(time.time() - fit_start))

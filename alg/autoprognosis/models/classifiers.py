@@ -28,7 +28,7 @@ warnings.filterwarnings("ignore")
 
 logger = logging.getLogger()
 
-classifier_xtr_arg = 1
+classifier_xtr_arg = 0
 
 
 def classifier_set_xtr_arg(xtr):
@@ -263,7 +263,7 @@ class Bagging(baseClassifier):
         self.max_samples    = max_samples
         self.name           = 'Bagging'
         self.max_features   = max_features
-        self.base_estimator = None if classifier_get_xtr_arg() < 2 else base_estimator # LogisticRegression()#base_estimator
+        self.base_estimator = None if classifier_get_xtr_arg() < 1 else base_estimator # LogisticRegression()#base_estimator
         self.is_pred_proba  = True
         self.model          = BaggingClassifier(
             n_estimators=self.n_estimators,
@@ -274,7 +274,7 @@ class Bagging(baseClassifier):
         
         self.explained     = "*Bootstrap aggregating, also called bagging, is a machine learning ensemble meta-algorithm designed to improve the stability and accuracy of machine learning algorithms used in statistical classification and regression. It also reduces variance and helps to avoid overfitting. Although it is usually applied to decision tree methods, it can be used with any type of method. Bagging is a special case of the model averaging approach.*"
         self.image_name    = "Bagging.png"
-        self.image_size    = (500,500)
+        self.image_size    = (500, 500)
         
         # ****Model hyper-parameters****
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
