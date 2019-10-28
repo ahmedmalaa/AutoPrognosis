@@ -34,6 +34,19 @@ $ The set cost function is ignored! LCB acquisition does not make sense with cos
 ```
 This issue results from interfacing with GPyOpt's acquisition functions. The issue can be ignored.
 
+### Citation
+
+If you use our code in your research, please cite:
+```sh
+@inproceedings{alaa2018autoprognosis,
+  title={AutoPrognosis: Automated Clinical Prognostic Modeling via Bayesian Optimization with Structured Kernel Learning},
+  author={Alaa, Ahmed and Schaar, Mihaela},
+  booktitle={International Conference on Machine Learning},
+  pages={139--148},
+  year={2018}
+}
+```
+
 ### References
 
 [1] A. M. Alaa and M. van der Schaar, [AutoPrognosis: Automated Clinical Prognostic Modeling via Bayesian Optimization with Structured Kernel Learning](http://proceedings.mlr.press/v80/alaa18b.html), ICML 2018.
