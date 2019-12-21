@@ -25,7 +25,7 @@ Once the above command is executed, the results can be found in two json files: 
 ```sh
 $ python3 autoprognosis_report.py -i <outdir>
 ```
-A tutorial on how to use AutoPrognosis API can also be found in the jupyter notebook tutorial_autoprognosis_*.ipynb
+A tutorial on how to use AutoPrognosis API can also be found in this [Jupyter notebook](https://github.com/ahmedmalaa/AutoPrognosis/blob/master/alg/autoprognosis/tutorial_autoprognosis_api.ipynb).
 
 ### Known issues
 Acquisition function LCB generates excesive warnings
